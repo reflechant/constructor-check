@@ -6,7 +6,7 @@ A constructor for type `T` (only structs are supported at the moment) is a funct
 
 ## Current state
 
-The linter is in MVP state. It only reports non-zero, non-nil composite literals in the same package the type is defined.
+The linter is in MVP state. It only reports composite literals in the same package the type is defined.
 
 ## Usage
 
@@ -14,12 +14,10 @@ To be described later.
 
 ## Todo
 
-- Check for composite literals inside containers
 - Check types described in other packages
 - Check derived types (type T2 T)
 - Check type aliases (type T2 = T)
-- Check for composite literals in struct fields
-- Warn on zero and nil values being potentially unsafe if a constructor is defined for their type
+- Use different diagnostic message on zero and nil values
 - Add flags to switch zero/nil values warnings
 - Maybe check constructor returned value instead of its name to extract type (they often rename types without renaming constructors)
 - Support other constructor signatures
