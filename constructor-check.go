@@ -7,26 +7,27 @@ package constructorcheck
 
 import (
 	"go/ast"
+	"go/types"
 	"log"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/go/ssa"
 )
 
-type HasConstructor bool
+type HasConstructor struct {
+	B bool
+}
 
 func (f *HasConstructor) AFact() {}
 
 var Analyzer = &analysis.Analyzer{
-	Name:      "constructor_check",
-	Doc:       "check for types constructed manually ignoring constructor",
-	Run:       run,
-	Requires:  []*analysis.Analyzer{inspect.Analyzer, buildssa.Analyzer},
-	FactTypes: []analysis.Fact{},
+	Name:     "constructor_check",
+	Doc:      "check for types constructed manually ignoring constructor",
+	Run:      run,
+	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	// FactTypes: []analysis.Fact{(*HasConstructor)(nil)},
 }
 
 func debugRun(pass *analysis.Pass) (interface{}, error) {
@@ -40,7 +41,6 @@ func debugRun(pass *analysis.Pass) (interface{}, error) {
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	ssainfo := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
 	// nodeFilter := []ast.Node{
 	// 	(*ast.CompositeLit)(nil),
@@ -49,41 +49,42 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// 	(*ast.FuncDecl)(nil),
 	// }
 
-	typeConstructors := make(map[string]*ast.FuncDecl)
-	typeLiteralNodes := make(map[string][]ast.Node)
+	// fmt.Println("DEFS")
+	// for ident, obj := range pass.TypesInfo.Defs {
+	// 	fmt.Printf("%v: %v\n", ident, obj)
+	// }
+	// fmt.Println("TYPES")
+	// for expr, typeAndValue := range pass.TypesInfo.Types {
+	// 	fmt.Printf("%v: %v\n", expr, typeAndValue)
+	// }
+	// fmt.Println(pass.Pkg.Scope().Names())
 
-	// inspector.Preorder(nodeFilter, func(node ast.Node) {
+	typeConstructors := make(map[types.Type]*ast.FuncDecl)
+	typeLiteralNodes := make(map[types.Type][]ast.Node)
+
 	inspector.Preorder(nil, func(node ast.Node) {
 		switch decl := node.(type) {
+		// case *ast.SelectorExpr:
+		// 	obj := ssainfo.Pkg.Pkg.Scope().Lookup(decl.Sel.Name)
+		// 	if obj == nil {
+		// 		break
+		// 	}
+		// 	fmt.Println(obj.Type())
+		// 	fmt.Printf("%v.%v\n", decl.X, decl.Sel)
 		case *ast.CompositeLit:
 			ident, ok := decl.Type.(*ast.Ident)
 			if !ok {
 				break
 			}
-			typeName := ident.Name
-			// check if composite literal type exists in the same package,
-			// ignore if not
-			typ, ok := ssainfo.Pkg.Members[typeName]
-			if !ok {
+			obj := pass.TypesInfo.ObjectOf(ident)
+			if obj == nil {
 				break
 			}
-			_, ok = typ.(*ssa.Type)
-			if !ok {
+			fact := new(HasConstructor)
+			if !pass.ImportObjectFact(obj, fact) {
 				break
 			}
-			typeLiteralNodes[typeName] = append(typeLiteralNodes[typeName], node)
-		// case *ast.Ident:
-		// 	if decl.Obj == nil {
-		// 		break
-		// 	}
-		// 	// fmt.Printf("%#v\n", decl.Obj)
-		// 	// fmt.Printf("obj %v = %#v\n", decl.Obj.Name, decl.Obj.Decl)
-		// 	valueSpec, ok := decl.Obj.Decl.(*ast.ValueSpec)
-		// 	if !ok {
-		// 		break
-		// 	}
-
-		// 	// fmt.Printf("%#v\n", valueSpec)
+			typeLiteralNodes[obj.Type()] = append(typeLiteralNodes[obj.Type()], node)
 		case *ast.FuncDecl:
 			// check if it's a function not a method
 			if decl.Recv != nil {
@@ -103,14 +104,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				break
 			}
 
-			// check if type T extracted from function name
-			// exists in the same package, ignore if not
-			typ, ok := ssainfo.Pkg.Members[typeName]
-			if !ok {
-				break
-			}
-			_, ok = typ.(*ssa.Type)
-			if !ok {
+			// check if type T extracted from function name exists
+			obj := pass.Pkg.Scope().Lookup(typeName)
+			if obj == nil {
 				break
 			}
 			// check if supposed constructor returns exactly one value
@@ -125,17 +121,17 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// // declared in the same package and T equals extracted type name
 
 			// assume we have a valid constructor
-			// fact := HasConstructor(true)
-			typeConstructors[typeName] = decl
-			// pass.ExportObjectFact(ssaType.Object(), &fact)
+			fact := HasConstructor{B: true}
+			typeConstructors[obj.Type()] = decl
+			pass.ExportObjectFact(obj, &fact)
 		default:
 			// fmt.Printf("%#v\n", node)
 		}
 	})
 
-	for typeName, nodes := range typeLiteralNodes {
+	for typ, nodes := range typeLiteralNodes {
 		for _, node := range nodes {
-			if constructor, ok := typeConstructors[typeName]; ok {
+			if constructor, ok := typeConstructors[typ]; ok {
 				if node.Pos() >= constructor.Pos() &&
 					node.Pos() < constructor.End() {
 					continue
@@ -144,7 +140,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					node.Pos(),
 					"use constructor %s for type %s instead of a composite literal",
 					constructor.Name.Name,
-					typeName)
+					typ.String())
 			}
 		}
 	}
