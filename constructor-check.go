@@ -7,83 +7,76 @@ package constructorcheck
 
 import (
 	"go/ast"
-	"log"
+	"go/token"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/go/ssa"
 )
 
-type HasConstructor bool
+type ConstructorFact struct {
+	ConstructorName string
+	Pos             token.Pos
+	End             token.Pos
+}
 
-func (f *HasConstructor) AFact() {}
+func (f *ConstructorFact) AFact() {}
 
 var Analyzer = &analysis.Analyzer{
 	Name:      "constructor_check",
 	Doc:       "check for types constructed manually ignoring constructor",
 	Run:       run,
-	Requires:  []*analysis.Analyzer{inspect.Analyzer, buildssa.Analyzer},
-	FactTypes: []analysis.Fact{},
-}
-
-func debugRun(pass *analysis.Pass) (interface{}, error) {
-	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	inspector.Preorder(nil, func(node ast.Node) {
-		log.Printf("%T = %v", node, node)
-	})
-
-	return nil, nil
+	Requires:  []*analysis.Analyzer{inspect.Analyzer},
+	FactTypes: []analysis.Fact{(*ConstructorFact)(nil)},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	ssainfo := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
-	// nodeFilter := []ast.Node{
-	// 	(*ast.CompositeLit)(nil),
-	// 	// (*ast.StructType)(nil),
-	// 	// (*ast.ValueSpec)(nil),
-	// 	(*ast.FuncDecl)(nil),
-	// }
+	nodeFilter := []ast.Node{
+		(*ast.CompositeLit)(nil),
+		(*ast.FuncDecl)(nil),
+	}
 
-	typeConstructors := make(map[string]*ast.FuncDecl)
-	typeLiteralNodes := make(map[string][]ast.Node)
-
-	// inspector.Preorder(nodeFilter, func(node ast.Node) {
-	inspector.Preorder(nil, func(node ast.Node) {
+	inspector.Preorder(nodeFilter, func(node ast.Node) {
 		switch decl := node.(type) {
 		case *ast.CompositeLit:
-			ident, ok := decl.Type.(*ast.Ident)
-			if !ok {
-				break
-			}
-			typeName := ident.Name
-			// check if composite literal type exists in the same package,
-			// ignore if not
-			typ, ok := ssainfo.Pkg.Members[typeName]
-			if !ok {
-				break
-			}
-			_, ok = typ.(*ssa.Type)
-			if !ok {
-				break
-			}
-			typeLiteralNodes[typeName] = append(typeLiteralNodes[typeName], node)
-		// case *ast.Ident:
-		// 	if decl.Obj == nil {
-		// 		break
-		// 	}
-		// 	// fmt.Printf("%#v\n", decl.Obj)
-		// 	// fmt.Printf("obj %v = %#v\n", decl.Obj.Name, decl.Obj.Decl)
-		// 	valueSpec, ok := decl.Obj.Decl.(*ast.ValueSpec)
-		// 	if !ok {
-		// 		break
-		// 	}
+			var ident *ast.Ident
 
-		// 	// fmt.Printf("%#v\n", valueSpec)
+			// select between native types and imported
+			switch id := decl.Type.(type) {
+			case *ast.Ident:
+				ident = id
+			case *ast.SelectorExpr:
+				ident = id.Sel
+			}
+
+			if ident == nil {
+				break
+			}
+
+			obj := pass.TypesInfo.ObjectOf(ident)
+			if obj == nil {
+				break
+			}
+
+			fact := new(ConstructorFact)
+			if !pass.ImportObjectFact(obj, fact) {
+				break
+			}
+			// if composite literal is inside it's own constructor - ignore
+			if node.Pos() >= fact.Pos &&
+				node.Pos() < fact.End {
+				break
+			}
+
+			pass.Reportf(
+				node.Pos(),
+				"use constructor %s for type %s instead of a composite literal",
+				fact.ConstructorName,
+				obj.Type())
+
 		case *ast.FuncDecl:
 			// check if it's a function not a method
 			if decl.Recv != nil {
@@ -103,14 +96,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				break
 			}
 
-			// check if type T extracted from function name
-			// exists in the same package, ignore if not
-			typ, ok := ssainfo.Pkg.Members[typeName]
-			if !ok {
-				break
-			}
-			_, ok = typ.(*ssa.Type)
-			if !ok {
+			// check if type T extracted from function name exists
+			obj := pass.Pkg.Scope().Lookup(typeName)
+			if obj == nil {
 				break
 			}
 			// check if supposed constructor returns exactly one value
@@ -125,29 +113,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// // declared in the same package and T equals extracted type name
 
 			// assume we have a valid constructor
-			// fact := HasConstructor(true)
-			typeConstructors[typeName] = decl
-			// pass.ExportObjectFact(ssaType.Object(), &fact)
+			fact := ConstructorFact{
+				ConstructorName: decl.Name.Name,
+				Pos:             decl.Pos(),
+				End:             decl.End(),
+			}
+			pass.ExportObjectFact(obj, &fact)
 		default:
 			// fmt.Printf("%#v\n", node)
 		}
 	})
-
-	for typeName, nodes := range typeLiteralNodes {
-		for _, node := range nodes {
-			if constructor, ok := typeConstructors[typeName]; ok {
-				if node.Pos() >= constructor.Pos() &&
-					node.Pos() < constructor.End() {
-					continue
-				}
-				pass.Reportf(
-					node.Pos(),
-					"use constructor %s for type %s instead of a composite literal",
-					constructor.Name.Name,
-					typeName)
-			}
-		}
-	}
 
 	return nil, nil
 }

@@ -1,20 +1,24 @@
 # constructor-check
 
-A go/analysis-compatible linter that reports type composite literals constructed manually while a constructor is defined in the same package as the type.
+A go/analysis-compatible linter that reports struct type composite literals constructed manually while a constructor is defined in the same package as the type.
 
 A constructor for type `T` (only structs are supported at the moment) is a function with name starting with "New" that returns a value of type `T` or `*T`.
 
-## Current state
-
-The linter is in MVP state. It only reports composite literals in the same package the type is defined.
-
 ## Usage
 
-To be described later.
+### Manually
+
+1. Run `make build` or build the main.go in cmd/constructor-check however you see fit.
+2. Run ./constructor_check [-flag] [package]. You may run the command without parameters to get help message.
+
+### With go vet
+To be updated
+
+### With golangci-lint
+Follow the instructions how to include a private plugin [here](https://golangci-lint.run/contributing/new-linters/#configure-a-plugin).
 
 ## Todo
 
-- Check types described in other packages
 - Check derived types (type T2 T)
 - Check type aliases (type T2 = T)
 - Use different diagnostic message on zero and nil values
@@ -23,4 +27,4 @@ To be described later.
 - Support other constructor signatures
     - (T, error) and (*T, error)
     - (T, bool) and (*T, bool)
-- Move towards being adopted by golangci-lint
+- Work towards being included to golangci-lint

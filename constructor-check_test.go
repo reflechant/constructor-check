@@ -15,6 +15,6 @@ func TestAll(t *testing.T) {
 	}
 
 	testdata := filepath.Join(wd, "testdata")
-	t.Log(testdata)
+	t.Log("testdata", testdata)
 	analysistest.Run(t, testdata, Analyzer, "p")
 }
