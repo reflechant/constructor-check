@@ -5,6 +5,7 @@
 # Ignore all
 *
 !LICENSE
+!Makefile
 
 # Unignore all with extensions
 !*.*
