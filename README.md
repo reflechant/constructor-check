@@ -6,7 +6,7 @@ A constructor for type `T` (only structs are supported at the moment) is a funct
 
 ## Current state
 
-The linter is in MVP state. It only reports non-zero, non-nil composite literate in the same package the 
+The linter is in MVP state. It only reports non-zero, non-nil composite literals in the same package the type is defined.
 
 ## Usage
 
