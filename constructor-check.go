@@ -40,9 +40,6 @@ func debugRun(pass *analysis.Pass) (interface{}, error) {
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	for _, f := range pass.AllObjectFacts() {
-		log.Printf("facts: %v", f.Object.Name())
-	}
 	ssainfo := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
 	// nodeFilter := []ast.Node{
@@ -52,8 +49,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// 	(*ast.FuncDecl)(nil),
 	// }
 
-	typeConstructors := make(map[*ssa.Type]string)
-	typeLiteralNodes := make(map[*ssa.Type]ast.Node)
+	typeConstructors := make(map[string]string)
+	typeLiteralNodes := make(map[string][]ast.Node)
 
 	// inspector.Preorder(nodeFilter, func(node ast.Node) {
 	inspector.Preorder(nil, func(node ast.Node) {
@@ -70,11 +67,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if !ok {
 				break
 			}
-			ssaType, ok := typ.(*ssa.Type)
+			_, ok = typ.(*ssa.Type)
 			if !ok {
 				break
 			}
-			typeLiteralNodes[ssaType] = node
+			typeLiteralNodes[typeName] = append(typeLiteralNodes[typeName], node)
 		// case *ast.Ident:
 		// 	if decl.Obj == nil {
 		// 		break
@@ -112,7 +109,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if !ok {
 				break
 			}
-			ssaType, ok := typ.(*ssa.Type)
+			_, ok = typ.(*ssa.Type)
 			if !ok {
 				break
 			}
@@ -129,20 +126,22 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 			// assume we have a valid constructor
 			// fact := HasConstructor(true)
-			typeConstructors[ssaType] = decl.Name.Name
+			typeConstructors[typeName] = decl.Name.Name
 			// pass.ExportObjectFact(ssaType.Object(), &fact)
 		default:
 			// fmt.Printf("%#v\n", node)
 		}
 	})
 
-	for typ, node := range typeLiteralNodes {
-		if constructorName, ok := typeConstructors[typ]; ok {
-			pass.Reportf(
-				node.Pos(),
-				"use constructor %s for type %s instead of a composite literal",
-				constructorName,
-				typ.Name())
+	for typeName, nodes := range typeLiteralNodes {
+		for _, node := range nodes {
+			if constructorName, ok := typeConstructors[typeName]; ok {
+				pass.Reportf(
+					node.Pos(),
+					"use constructor %s for type %s instead of a composite literal",
+					constructorName,
+					typeName)
+			}
 		}
 	}
 
