@@ -6,7 +6,7 @@ import "fmt"
 // NewT is a valid constructor for type T. Here we check if it's called
 // instead of constructing values of type T manually
 func NewT() *T {
-	return &T{
+	return &T{ // want `use constructor NewT for type T instead of a composite literal`
 		m: make(map[int]int),
 	}
 }
@@ -37,16 +37,29 @@ var (
 		x: 1,
 		s: "abc",
 	}
-	tColl = []T{T{x: 1}} // want `use constructor NewT for type T instead of a composite literal`
-	n     = nested{
-		i: 1,
-		t: T{x: 1}, // want `use constructor NewT for type T instead of a composite literal`
-	}
+	tColl    = []T{T{x: 1}}   // want `use constructor NewT for type T instead of a composite literal`
+	tPtrColl = []*T{&T{x: 1}} // want `use constructor NewT for type T instead of a composite literal`
+
 )
 
-type nested struct {
+type structWithTField struct {
 	i int
 	t T
+}
+
+var structWithT = structWithTField{
+	i: 1,
+	t: T{x: 1}, // want `use constructor NewT for type T instead of a composite literal`
+}
+
+type structWithTPtrField struct {
+	i int
+	t *T
+}
+
+var structWithTPtr = structWithTPtrField{
+	i: 1,
+	t: &T{x: 1}, // want `use constructor NewT for type T instead of a composite literal`
 }
 
 func f() {
