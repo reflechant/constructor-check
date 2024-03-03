@@ -1,7 +1,11 @@
 // Package p is a test package for constructor-check analyzer
 package p
 
-import "fmt"
+import (
+	"fmt"
+
+	"subp"
+)
 
 // NewT is a valid constructor for type T. Here we check if it's called
 // instead of constructing values of type T manually
@@ -25,6 +29,7 @@ type tDerived T
 // TODO: check for type alias literals
 type tAlias = T
 
+// same package
 var (
 	t     = T{}  // want `use constructor NewT for type T instead of a composite literal`
 	t2    = &T{} // want `use constructor NewT for type T instead of a composite literal`
@@ -39,6 +44,22 @@ var (
 	}
 	tColl    = []T{T{x: 1}}   // want `use constructor NewT for type T instead of a composite literal`
 	tPtrColl = []*T{&T{x: 1}} // want `use constructor NewT for type T instead of a composite literal`
+
+)
+
+// imported package
+var (
+	u     = subp.U{}  // want `use constructor NewU for type U instead of a composite literal`
+	u2    = &subp.U{} // want `use constructor NewU for type U instead of a composite literal`
+	u3    = new(subp.U)
+	justU = subp.U{ // want `use constructor NewU for type U instead of a composite literal`
+		X: 1,
+	}
+	ptrToU = &subp.U{ // want `use constructor NewU for type U instead of a composite literal`
+		X: 1,
+	}
+	uColl    = []subp.U{subp.U{X: 1}}   // want `use constructor NewU for type U instead of a composite literal`
+	uPtrColl = []*subp.U{&subp.U{X: 1}} // want `use constructor NewU for type U instead of a composite literal`
 
 )
 
