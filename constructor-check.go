@@ -8,7 +8,6 @@ package constructorcheck
 import (
 	"go/ast"
 	"go/token"
-	"log"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -16,70 +15,53 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-type Constructor struct {
+type ConstructorFact struct {
 	ConstructorName string
 	Pos             token.Pos
 	End             token.Pos
 }
 
-func (f *Constructor) AFact() {}
+func (f *ConstructorFact) AFact() {}
 
 var Analyzer = &analysis.Analyzer{
-	Name:     "constructor_check",
-	Doc:      "check for types constructed manually ignoring constructor",
-	Run:      run,
-	Requires: []*analysis.Analyzer{inspect.Analyzer},
-	// FactTypes: []analysis.Fact{(*HasConstructor)(nil)},
-}
-
-func debugRun(pass *analysis.Pass) (interface{}, error) {
-	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	inspector.Preorder(nil, func(node ast.Node) {
-		log.Printf("%T = %v", node, node)
-	})
-
-	return nil, nil
+	Name:      "constructor_check",
+	Doc:       "check for types constructed manually ignoring constructor",
+	Run:       run,
+	Requires:  []*analysis.Analyzer{inspect.Analyzer},
+	FactTypes: []analysis.Fact{(*ConstructorFact)(nil)},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
-	// nodeFilter := []ast.Node{
-	// 	(*ast.CompositeLit)(nil),
-	// 	// (*ast.StructType)(nil),
-	// 	// (*ast.ValueSpec)(nil),
-	// 	(*ast.FuncDecl)(nil),
-	// }
+	nodeFilter := []ast.Node{
+		(*ast.CompositeLit)(nil),
+		(*ast.FuncDecl)(nil),
+	}
 
-	// fmt.Println("DEFS")
-	// for ident, obj := range pass.TypesInfo.Defs {
-	// 	fmt.Printf("%v: %v\n", ident, obj)
-	// }
-	// fmt.Println("TYPES")
-	// for expr, typeAndValue := range pass.TypesInfo.Types {
-	// 	fmt.Printf("%v: %v\n", expr, typeAndValue)
-	// }
-	// fmt.Println(pass.Pkg.Scope().Names())
-
-	inspector.Preorder(nil, func(node ast.Node) {
+	inspector.Preorder(nodeFilter, func(node ast.Node) {
 		switch decl := node.(type) {
-		// case *ast.SelectorExpr:
-		// 	obj := ssainfo.Pkg.Pkg.Scope().Lookup(decl.Sel.Name)
-		// 	if obj == nil {
-		// 		break
-		// 	}
-		// 	fmt.Println(obj.Type())
-		// 	fmt.Printf("%v.%v\n", decl.X, decl.Sel)
 		case *ast.CompositeLit:
-			ident, ok := decl.Type.(*ast.Ident)
-			if !ok {
+			var ident *ast.Ident
+
+			// select between native types and imported
+			switch id := decl.Type.(type) {
+			case *ast.Ident:
+				ident = id
+			case *ast.SelectorExpr:
+				ident = id.Sel
+			}
+
+			if ident == nil {
 				break
 			}
+
 			obj := pass.TypesInfo.ObjectOf(ident)
 			if obj == nil {
 				break
 			}
-			fact := new(Constructor)
+
+			fact := new(ConstructorFact)
 			if !pass.ImportObjectFact(obj, fact) {
 				break
 			}
@@ -88,11 +70,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				node.Pos() < fact.End {
 				break
 			}
+
 			pass.Reportf(
 				node.Pos(),
 				"use constructor %s for type %s instead of a composite literal",
 				fact.ConstructorName,
 				obj.Type())
+
 		case *ast.FuncDecl:
 			// check if it's a function not a method
 			if decl.Recv != nil {
@@ -129,7 +113,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// // declared in the same package and T equals extracted type name
 
 			// assume we have a valid constructor
-			fact := Constructor{
+			fact := ConstructorFact{
 				ConstructorName: decl.Name.Name,
 				Pos:             decl.Pos(),
 				End:             decl.End(),

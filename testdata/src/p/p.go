@@ -90,32 +90,32 @@ func retPtrT() *T {
 
 // imported package
 var (
-	u     = subp.T{}  // wwant `use constructor NewT for type T instead of a composite literal`
-	u2    = &subp.T{} // wwant `use constructor NewT for type T instead of a composite literal`
+	u     = subp.T{}  // want `use constructor NewT for type subp.T instead of a composite literal`
+	u2    = &subp.T{} // want `use constructor NewT for type subp.T instead of a composite literal`
 	u3    = new(subp.T)
-	justU = subp.T{ // wwant `use constructor NewT for type T instead of a composite literal`
+	justU = subp.T{ // want `use constructor NewT for type subp.T instead of a composite literal`
 		X: 1,
 	}
-	ptrToU = &subp.T{ // wwant `use constructor NewT for type T instead of a composite literal`
+	ptrToU = &subp.T{ // want `use constructor NewT for type subp.T instead of a composite literal`
 		X: 1,
 	}
-	uColl    = []subp.T{subp.T{X: 1}}   // wwant `use constructor NewT for type T instead of a composite literal`
-	uPtrColl = []*subp.T{&subp.T{X: 1}} // wwant `use constructor NewT for type T instead of a composite literal`
+	uColl    = []subp.T{subp.T{X: 1}}   // want `use constructor NewT for type subp.T instead of a composite literal`
+	uPtrColl = []*subp.T{&subp.T{X: 1}} // want `use constructor NewT for type subp.T instead of a composite literal`
 	correctU = subp.NewT()
 )
 
 // aliased imported package
 var (
-	au     = alias.T{}  // wwant `use constructor NewT for type T instead of a composite literal`
-	au2    = &alias.T{} // wwant `use constructor NewT for type T instead of a composite literal`
+	au     = alias.T{}  // want `use constructor NewT for type subp.T instead of a composite literal`
+	au2    = &alias.T{} // want `use constructor NewT for type subp.T instead of a composite literal`
 	au3    = new(alias.T)
-	ajustU = alias.T{ // wwant `use constructor NewT for type T instead of a composite literal`
+	ajustU = alias.T{ // want `use constructor NewT for type subp.T instead of a composite literal`
 		X: 1,
 	}
-	aptrToU = &alias.T{ // wwant `use constructor NewT for type T instead of a composite literal`
+	aptrToU = &alias.T{ // want `use constructor NewT for type subp.T instead of a composite literal`
 		X: 1,
 	}
-	auColl    = []alias.T{alias.T{X: 1}}   // wwant `use constructor NewT for type T instead of a composite literal`
-	auPtrColl = []*alias.T{&alias.T{X: 1}} // wwant `use constructor NewT for type T instead of a composite literal`
+	auColl    = []alias.T{alias.T{X: 1}}   // want `use constructor NewT for type subp.T instead of a composite literal`
+	auPtrColl = []*alias.T{&alias.T{X: 1}} // want `use constructor NewT for type subp.T instead of a composite literal`
 	acorrectU = alias.NewT()
 )
