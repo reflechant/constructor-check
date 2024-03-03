@@ -4,6 +4,7 @@
 
 # Ignore all
 *
+!LICENSE
 
 # Unignore all with extensions
 !*.*
