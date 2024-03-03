@@ -6,7 +6,7 @@ import "fmt"
 // NewT is a valid constructor for type T. Here we check if it's called
 // instead of constructing values of type T manually
 func NewT() *T {
-	return &T{ // want `use constructor NewT for type T instead of a composite literal`
+	return &T{
 		m: make(map[int]int),
 	}
 }
