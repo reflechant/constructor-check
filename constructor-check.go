@@ -49,7 +49,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// 	(*ast.FuncDecl)(nil),
 	// }
 
-	typeConstructors := make(map[string]string)
+	typeConstructors := make(map[string]*ast.FuncDecl)
 	typeLiteralNodes := make(map[string][]ast.Node)
 
 	// inspector.Preorder(nodeFilter, func(node ast.Node) {
@@ -126,7 +126,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 			// assume we have a valid constructor
 			// fact := HasConstructor(true)
-			typeConstructors[typeName] = decl.Name.Name
+			typeConstructors[typeName] = decl
 			// pass.ExportObjectFact(ssaType.Object(), &fact)
 		default:
 			// fmt.Printf("%#v\n", node)
@@ -135,11 +135,15 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	for typeName, nodes := range typeLiteralNodes {
 		for _, node := range nodes {
-			if constructorName, ok := typeConstructors[typeName]; ok {
+			if constructor, ok := typeConstructors[typeName]; ok {
+				if node.Pos() >= constructor.Pos() &&
+					node.Pos() < constructor.End() {
+					continue
+				}
 				pass.Reportf(
 					node.Pos(),
 					"use constructor %s for type %s instead of a composite literal",
-					constructorName,
+					constructor.Name.Name,
 					typeName)
 			}
 		}
