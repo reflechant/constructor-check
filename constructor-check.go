@@ -7,7 +7,7 @@ package constructorcheck
 
 import (
 	"go/ast"
-	"go/types"
+	"go/token"
 	"log"
 	"strings"
 
@@ -16,11 +16,13 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-type HasConstructor struct {
-	B bool
+type Constructor struct {
+	ConstructorName string
+	Pos             token.Pos
+	End             token.Pos
 }
 
-func (f *HasConstructor) AFact() {}
+func (f *Constructor) AFact() {}
 
 var Analyzer = &analysis.Analyzer{
 	Name:     "constructor_check",
@@ -59,9 +61,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// }
 	// fmt.Println(pass.Pkg.Scope().Names())
 
-	typeConstructors := make(map[types.Type]*ast.FuncDecl)
-	typeLiteralNodes := make(map[types.Type][]ast.Node)
-
 	inspector.Preorder(nil, func(node ast.Node) {
 		switch decl := node.(type) {
 		// case *ast.SelectorExpr:
@@ -80,11 +79,20 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if obj == nil {
 				break
 			}
-			fact := new(HasConstructor)
+			fact := new(Constructor)
 			if !pass.ImportObjectFact(obj, fact) {
 				break
 			}
-			typeLiteralNodes[obj.Type()] = append(typeLiteralNodes[obj.Type()], node)
+			// if composite literal is inside it's own constructor - ignore
+			if node.Pos() >= fact.Pos &&
+				node.Pos() < fact.End {
+				break
+			}
+			pass.Reportf(
+				node.Pos(),
+				"use constructor %s for type %s instead of a composite literal",
+				fact.ConstructorName,
+				obj.Type())
 		case *ast.FuncDecl:
 			// check if it's a function not a method
 			if decl.Recv != nil {
@@ -121,29 +129,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// // declared in the same package and T equals extracted type name
 
 			// assume we have a valid constructor
-			fact := HasConstructor{B: true}
-			typeConstructors[obj.Type()] = decl
+			fact := Constructor{
+				ConstructorName: decl.Name.Name,
+				Pos:             decl.Pos(),
+				End:             decl.End(),
+			}
 			pass.ExportObjectFact(obj, &fact)
 		default:
 			// fmt.Printf("%#v\n", node)
 		}
 	})
-
-	for typ, nodes := range typeLiteralNodes {
-		for _, node := range nodes {
-			if constructor, ok := typeConstructors[typ]; ok {
-				if node.Pos() >= constructor.Pos() &&
-					node.Pos() < constructor.End() {
-					continue
-				}
-				pass.Reportf(
-					node.Pos(),
-					"use constructor %s for type %s instead of a composite literal",
-					constructor.Name.Name,
-					typ.String())
-			}
-		}
-	}
 
 	return nil, nil
 }

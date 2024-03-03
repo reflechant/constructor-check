@@ -18,7 +18,7 @@ func NewT() *T {
 
 // T is a type whose zero values are supposedly invalid
 // so a constructor NewT was created.
-type T struct { // want T:"true"
+type T struct { // want T:`{NewT \d* \d*}`
 	x int
 	s string
 	m map[int]int
