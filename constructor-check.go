@@ -8,6 +8,8 @@ package constructorcheck
 import (
 	"go/ast"
 	"go/token"
+	"log"
+	"os/exec"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -38,6 +40,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		(*ast.CompositeLit)(nil),
 		(*ast.FuncDecl)(nil),
 	}
+
+	stdPackages := stdPackageNames()
 
 	inspector.Preorder(nodeFilter, func(node ast.Node) {
 		switch decl := node.(type) {
@@ -101,6 +105,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if obj == nil {
 				break
 			}
+
+			// ignore standard library
+			if _, ok := stdPackages[obj.Pkg().Name()]; ok {
+				break
+			}
 			// check if supposed constructor returns exactly one value
 			// TODO: implement other cases ?
 			// (T, err), (*T, err), (T, bool), (*T, bool)
@@ -125,4 +134,21 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	})
 
 	return nil, nil
+}
+
+func stdPackageNames() map[string]struct{} {
+	// inspired by https://pkg.go.dev/golang.org/x/tools/go/packages#Load
+	cmd := exec.Command("go", "list", "std")
+
+	output, err := cmd.Output()
+	if err != nil {
+		log.Fatal("can't load standard library package names")
+	}
+	pkgs := strings.Fields(string(output))
+
+	stdPkgNames := make(map[string]struct{}, len(pkgs))
+	for _, pkg := range pkgs {
+		stdPkgNames[pkg] = struct{}{}
+	}
+	return stdPkgNames
 }

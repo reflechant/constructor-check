@@ -2,11 +2,14 @@
 package p
 
 import (
+	"bytes"
 	"fmt"
 
 	"subp"
 	alias "subp"
 )
+
+var buf = bytes.Buffer{} // standard library is excluded from analysis
 
 // NewT is a valid constructor for type T. Here we check if it's called
 // instead of constructing values of type T manually
