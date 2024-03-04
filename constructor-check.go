@@ -1,8 +1,12 @@
-// Package constructorcheck is a go/analysis linter
-// that reports types constructed manually while a constructor is present.
+// Package constructorcheck is a linter that reports ignored constructors.
+// It shows you places where someone is doing T{} or &T{}
+// instead of using NewT declared in the same package as T
+// ( new(T) is not yet reported ).
 // A constructor for type T (only structs are supported at the moment)
-// is a function with name starting with "New"
-// that returns a value of type T or *T.
+// is a function with name "NewT" that returns a value of type T or *T.
+// Types returned by constructors are not checked right now,
+// only that type T inferred from the function name exists in the same package.
+// Standard library packages are excluded from analysis.
 package constructorcheck
 
 import (
