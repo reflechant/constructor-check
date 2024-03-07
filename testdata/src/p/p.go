@@ -35,10 +35,10 @@ type tAlias = T
 
 // same package
 var (
-	t     = T{}  // want `use constructor NewT for type p.T instead of a composite literal`
-	t2    = &T{} // want `use constructor NewT for type p.T instead of a composite literal`
-	t3    = new(T)
-	justT = T{ // want `use constructor NewT for type p.T instead of a composite literal`
+	t     = T{}    // want `use constructor NewT for type p.T instead of a composite literal`
+	t2    = &T{}   // want `use constructor NewT for type p.T instead of a composite literal`
+	t3    = new(T) // want `nil value of type p.T may be unsafe to use, use constructor NewT instead`
+	justT = T{     // want `use constructor NewT for type p.T instead of a composite literal`
 		x: 1,
 		s: "abc",
 	}
@@ -72,10 +72,9 @@ var structWithTPtr = structWithTPtrField{
 }
 
 func f() {
-	x := T{}   // want `use constructor NewT for type p.T instead of a composite literal`
-	x2 := &T{} // want `use constructor NewT for type p.T instead of a composite literal`
-	// TODO: check nil values created with new
-	x3 := new(T)
+	x := T{}     // want `use constructor NewT for type p.T instead of a composite literal`
+	x2 := &T{}   // want `use constructor NewT for type p.T instead of a composite literal`
+	x3 := new(T) // want `nil value of type p.T may be unsafe to use, use constructor NewT instead`
 	fmt.Println(x, x2, x3)
 }
 
@@ -93,10 +92,10 @@ func retPtrT() *T {
 
 // imported package
 var (
-	u     = subp.T{}  // want `use constructor NewT for type subp.T instead of a composite literal`
-	u2    = &subp.T{} // want `use constructor NewT for type subp.T instead of a composite literal`
-	u3    = new(subp.T)
-	justU = subp.T{ // want `use constructor NewT for type subp.T instead of a composite literal`
+	u     = subp.T{}    // want `use constructor NewT for type subp.T instead of a composite literal`
+	u2    = &subp.T{}   // want `use constructor NewT for type subp.T instead of a composite literal`
+	u3    = new(subp.T) // want `nil value of type subp.T may be unsafe to use, use constructor NewT instead`
+	justU = subp.T{     // want `use constructor NewT for type subp.T instead of a composite literal`
 		X: 1,
 	}
 	ptrToU = &subp.T{ // want `use constructor NewT for type subp.T instead of a composite literal`
@@ -109,10 +108,10 @@ var (
 
 // aliased imported package
 var (
-	au     = alias.T{}  // want `use constructor NewT for type subp.T instead of a composite literal`
-	au2    = &alias.T{} // want `use constructor NewT for type subp.T instead of a composite literal`
-	au3    = new(alias.T)
-	ajustU = alias.T{ // want `use constructor NewT for type subp.T instead of a composite literal`
+	au     = alias.T{}    // want `use constructor NewT for type subp.T instead of a composite literal`
+	au2    = &alias.T{}   // want `use constructor NewT for type subp.T instead of a composite literal`
+	au3    = new(alias.T) // want `nil value of type subp.T may be unsafe to use, use constructor NewT instead`
+	ajustU = alias.T{     // want `use constructor NewT for type subp.T instead of a composite literal`
 		X: 1,
 	}
 	aptrToU = &alias.T{ // want `use constructor NewT for type subp.T instead of a composite literal`
@@ -122,3 +121,19 @@ var (
 	auPtrColl = []*alias.T{&alias.T{X: 1}} // want `use constructor NewT for type subp.T instead of a composite literal`
 	acorrectU = alias.NewT()
 )
+
+type T2 struct { // want T2:`{NewT2 \d* \d*}`
+	x int
+}
+
+func NewT2() *T2 {
+	// new(T) inside T's constructor is permitted
+	return new(T2)
+}
+
+// this is not considered a constructor as it returns a type from another package
+func NewTForeignConstructor() subp.TForeignConstructor {
+	return subp.TForeignConstructor{
+		X: 42,
+	}
+}

@@ -14,3 +14,7 @@ type T struct {
 	X int
 	M map[int]int
 }
+
+type TForeignConstructor struct {
+	X int
+}
