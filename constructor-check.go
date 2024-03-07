@@ -1,7 +1,6 @@
 // Package constructorcheck is a linter that reports ignored constructors.
 // It shows you places where someone is doing T{} or &T{}
-// instead of using NewT declared in the same package as T
-// ( new(T) is not yet reported ).
+// instead of using NewT declared in the same package as T.
 // A constructor for type T (only structs are supported at the moment)
 // is a function with name "NewT" that returns a value of type T or *T.
 // Types returned by constructors are not checked right now,
@@ -37,33 +36,69 @@ var Analyzer = &analysis.Analyzer{
 	FactTypes: []analysis.Fact{(*ConstructorFact)(nil)},
 }
 
+var stdPackages = stdPackageNames()
+
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	nodeFilter := []ast.Node{
 		(*ast.CompositeLit)(nil),
 		(*ast.FuncDecl)(nil),
+		(*ast.CallExpr)(nil),
 	}
 
-	stdPackages := stdPackageNames()
-
 	inspector.Preorder(nodeFilter, func(node ast.Node) {
+
 		switch decl := node.(type) {
-		case *ast.CompositeLit:
-			var ident *ast.Ident
-
-			// select between native types and imported
-			switch id := decl.Type.(type) {
-			case *ast.Ident:
-				ident = id
-			case *ast.SelectorExpr:
-				ident = id.Sel
+		case *ast.CallExpr:
+			// check if it's a new call
+			fn, ok := decl.Fun.(*ast.Ident)
+			if !ok {
+				break
 			}
-
+			if fn.Name != "new" {
+				break
+			}
+			// check we have only one argument (the type)
+			if len(decl.Args) != 1 {
+				break
+			}
+			// select between native types and imported
+			ident := typeIdent(decl.Args[0])
 			if ident == nil {
 				break
 			}
 
+			// check the type has a constructor
+			typeObj := pass.TypesInfo.ObjectOf(ident)
+			if typeObj == nil {
+				break
+			}
+			fact := new(ConstructorFact)
+			if !pass.ImportObjectFact(typeObj, fact) {
+				break
+			}
+
+			// if new(T) is called inside T's constructor - ignore
+			if node.Pos() >= fact.Pos &&
+				node.Pos() < fact.End {
+				break
+			}
+
+			pass.Reportf(
+				node.Pos(),
+				"nil value of type %s may be unsafe to use, use constructor %s instead",
+				typeObj.Type(),
+				fact.ConstructorName,
+			)
+		case *ast.CompositeLit:
+			// select between native types and imported
+			ident := typeIdent(decl.Type)
+			if ident == nil {
+				break
+			}
+
+			// check the type has a constructor
 			obj := pass.TypesInfo.ObjectOf(ident)
 			if obj == nil {
 				break
@@ -83,8 +118,8 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				node.Pos(),
 				"use constructor %s for type %s instead of a composite literal",
 				fact.ConstructorName,
-				obj.Type())
-
+				obj.Type(),
+			)
 		case *ast.FuncDecl:
 			// check if it's a function not a method
 			if decl.Recv != nil {
@@ -110,7 +145,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				break
 			}
 
-			// ignore standard library
+			// ignore standard library types
 			if _, ok := stdPackages[obj.Pkg().Name()]; ok {
 				break
 			}
@@ -138,6 +173,17 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	})
 
 	return nil, nil
+}
+
+// typeIdent returns either local or imported type ident or nil
+func typeIdent(expr ast.Expr) *ast.Ident {
+	switch id := expr.(type) {
+	case *ast.Ident:
+		return id
+	case *ast.SelectorExpr:
+		return id.Sel
+	}
+	return nil
 }
 
 func stdPackageNames() map[string]struct{} {
