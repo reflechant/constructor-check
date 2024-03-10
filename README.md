@@ -30,10 +30,7 @@ Run `go vet --vettool=<path-to-constructor-check-binary> [package]`
 Follow the instructions how to include a private plugin [here](https://golangci-lint.run/contributing/new-linters/#configure-a-plugin).
 
 ## Todo
-- Check derived types (type T2 T)
-- Check type aliases (type T2 = T)
 - Use different diagnostic message on zero values (?)
-- Add flags to switch zero/nil values warnings (?)
 - Maybe check constructor returned value instead of its name to extract type (they often rename types without renaming constructors)
 - How about reporting constructors with function names inconsistent with type names ?
 - Support other constructor signatures
