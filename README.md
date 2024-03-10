@@ -24,7 +24,7 @@ Run `make build` or build the main.go however you see fit.
 Run `./constructor_check [-flag] [package]`. You may run the command without parameters to get help message.
 
 ### With go vet
-2. Run `go vet --vettool=<path-to-constructor-check-binary> [package]`
+Run `go vet --vettool=<path-to-constructor-check-binary> [package]`
 
 ### With golangci-lint
 Follow the instructions how to include a private plugin [here](https://golangci-lint.run/contributing/new-linters/#configure-a-plugin).
