@@ -6,9 +6,10 @@ import (
 )
 
 var (
-	subpTZero      = subp.T{}    // want `use constructor NewT for type subp.T instead of a composite literal`
-	subpTZeroPtr   = &subp.T{}   // want `use constructor NewT for type subp.T instead of a composite literal`
-	subpTNil       = new(subp.T) // want `nil value of type subp.T may be unsafe to use, use constructor NewT instead`
+	subpTNil       *subp.T       // want `nil value of type subp.T may be unsafe, use constructor NewT instead`
+	subpTZero      = subp.T{}    // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
+	subpTZeroPtr   = &subp.T{}   // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
+	subpTNew       = new(subp.T) // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
 	subpTComposite = subp.T{     // want `use constructor NewT for type subp.T instead of a composite literal`
 		X: 1,
 	}
@@ -41,9 +42,9 @@ var structWithSubpTPtr = structWithSubpTPtrField{
 }
 
 func fnWithSubpT() {
-	x := subp.T{}     // want `use constructor NewT for type subp.T instead of a composite literal`
-	x2 := &subp.T{}   // want `use constructor NewT for type subp.T instead of a composite literal`
-	x3 := new(subp.T) // want `nil value of type subp.T may be unsafe to use, use constructor NewT instead`
+	x := subp.T{}     // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
+	x2 := &subp.T{}   // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
+	x3 := new(subp.T) // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
 	fmt.Println(x, x2, x3)
 }
 

@@ -17,9 +17,10 @@ type T struct { // want T:`{NewT \d* \d*}`
 }
 
 var (
-	tZero      = T{}    // want `use constructor NewT for type p.T instead of a composite literal`
-	tZeroPtr   = &T{}   // want `use constructor NewT for type p.T instead of a composite literal`
-	tNil       = new(T) // want `nil value of type p.T may be unsafe to use, use constructor NewT instead`
+	tNil       *T       // want `nil value of type p.T may be unsafe, use constructor NewT instead`
+	tZero      = T{}    // want `zero value of type p.T may be unsafe, use constructor NewT instead`
+	tZeroPtr   = &T{}   // want `zero value of type p.T may be unsafe, use constructor NewT instead`
+	tNew       = new(T) // want `zero value of type p.T may be unsafe, use constructor NewT instead`
 	tComposite = T{     // want `use constructor NewT for type p.T instead of a composite literal`
 		x: 1,
 		s: "abc",
@@ -62,9 +63,9 @@ var structWithTPtr = structWithTPtrField{
 }
 
 func fnWithT() {
-	x := T{}     // want `use constructor NewT for type p.T instead of a composite literal`
-	x2 := &T{}   // want `use constructor NewT for type p.T instead of a composite literal`
-	x3 := new(T) // want `nil value of type p.T may be unsafe to use, use constructor NewT instead`
+	x := T{}     // want `zero value of type p.T may be unsafe, use constructor NewT instead`
+	x2 := &T{}   // want `zero value of type p.T may be unsafe, use constructor NewT instead`
+	x3 := new(T) // want `zero value of type p.T may be unsafe, use constructor NewT instead`
 	fmt.Println(x, x2, x3)
 }
 
@@ -78,6 +79,11 @@ func retTPtr() *T {
 	return &T{ // want `use constructor NewT for type p.T instead of a composite literal`
 		x: 1,
 	}
+}
+
+func retTNilPtr() *T {
+	var t *T // want `nil value of type p.T may be unsafe, use constructor NewT instead`
+	return t
 }
 
 type T2 struct { // want T2:`{NewT2 \d* \d*}`

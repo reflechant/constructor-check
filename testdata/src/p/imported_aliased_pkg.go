@@ -6,9 +6,10 @@ import (
 )
 
 var (
-	aliasTZero      = alias.T{}    // want `use constructor NewT for type subp.T instead of a composite literal`
-	aliasTZeroPtr   = &alias.T{}   // want `use constructor NewT for type subp.T instead of a composite literal`
-	aliasTNil       = new(alias.T) // want `nil value of type subp.T may be unsafe to use, use constructor NewT instead`
+	aliasTNil       *alias.T       // want `nil value of type subp.T may be unsafe, use constructor NewT instead`
+	aliasTZero      = alias.T{}    // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
+	aliasTZeroPtr   = &alias.T{}   // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
+	aliasTNew       = new(alias.T) // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
 	aliasTComposite = alias.T{     // want `use constructor NewT for type subp.T instead of a composite literal`
 		X: 1,
 	}
@@ -41,9 +42,9 @@ var structWithAliasTPtr = structWithAliasTPtrField{
 }
 
 func fnWithAliasT() {
-	x := alias.T{}     // want `use constructor NewT for type subp.T instead of a composite literal`
-	x2 := &alias.T{}   // want `use constructor NewT for type subp.T instead of a composite literal`
-	x3 := new(alias.T) // want `nil value of type subp.T may be unsafe to use, use constructor NewT instead`
+	x := alias.T{}     // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
+	x2 := &alias.T{}   // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
+	x3 := new(alias.T) // want `zero value of type subp.T may be unsafe, use constructor NewT instead`
 	fmt.Println(x, x2, x3)
 }
 
