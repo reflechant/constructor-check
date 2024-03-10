@@ -1,4 +1,4 @@
-package constructorcheck
+package analyzer
 
 import (
 	"os"
@@ -14,7 +14,7 @@ func TestAll(t *testing.T) {
 		t.Fatalf("Failed to get wd: %s", err)
 	}
 
-	testdata := filepath.Join(wd, "testdata")
+	testdata := filepath.Join(wd, "..", "testdata")
 	t.Log("testdata", testdata)
 	analysistest.Run(t, testdata, Analyzer, "p")
 }
