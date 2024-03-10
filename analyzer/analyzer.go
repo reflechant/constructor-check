@@ -11,6 +11,7 @@ package analyzer
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"log"
 	"os/exec"
 	"strings"
@@ -47,6 +48,9 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		(*ast.CallExpr)(nil),
 	}
 
+	newCalls := make(map[token.Pos]types.Object)
+	compositeLiterals := make(map[token.Pos]types.Object)
+
 	inspector.Preorder(nodeFilter, func(node ast.Node) {
 
 		switch decl := node.(type) {
@@ -74,23 +78,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if typeObj == nil {
 				break
 			}
-			fact := new(ConstructorFact)
-			if !pass.ImportObjectFact(typeObj, fact) {
-				break
-			}
-
-			// if new(T) is called inside T's constructor - ignore
-			if node.Pos() >= fact.Pos &&
-				node.Pos() < fact.End {
-				break
-			}
-
-			pass.Reportf(
-				node.Pos(),
-				"nil value of type %s may be unsafe to use, use constructor %s instead",
-				typeObj.Type(),
-				fact.ConstructorName,
-			)
+			newCalls[node.Pos()] = typeObj
 		case *ast.CompositeLit:
 			// select between native types and imported
 			ident := typeIdent(decl.Type)
@@ -103,23 +91,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if obj == nil {
 				break
 			}
-
-			fact := new(ConstructorFact)
-			if !pass.ImportObjectFact(obj, fact) {
-				break
-			}
-			// if composite literal is inside it's own constructor - ignore
-			if node.Pos() >= fact.Pos &&
-				node.Pos() < fact.End {
-				break
-			}
-
-			pass.Reportf(
-				node.Pos(),
-				"use constructor %s for type %s instead of a composite literal",
-				fact.ConstructorName,
-				obj.Type(),
-			)
+			compositeLiterals[node.Pos()] = obj
 		case *ast.FuncDecl:
 			// check if it's a function not a method
 			if decl.Recv != nil {
@@ -172,7 +144,43 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		}
 	})
 
+	for pos, obj := range newCalls {
+		if constr, ok := constructorName(pass, obj, pos); ok {
+			pass.Reportf(
+				pos,
+				"nil value of type %s may be unsafe to use, use constructor %s instead",
+				obj.Type(),
+				constr,
+			)
+		}
+	}
+	for pos, obj := range compositeLiterals {
+		if constr, ok := constructorName(pass, obj, pos); ok {
+			pass.Reportf(
+				pos,
+				"use constructor %s for type %s instead of a composite literal",
+				constr,
+				obj.Type(),
+			)
+		}
+	}
+
 	return nil, nil
+}
+
+func constructorName(pass *analysis.Pass, obj types.Object, pos token.Pos) (string, bool) {
+	fact := new(ConstructorFact)
+	if !pass.ImportObjectFact(obj, fact) {
+		return "", false
+	}
+
+	// if used inside T's constructor - ignore
+	if pos >= fact.Pos &&
+		pos < fact.End {
+		return "", false
+	}
+
+	return fact.ConstructorName, true
 }
 
 // typeIdent returns either local or imported type ident or nil
