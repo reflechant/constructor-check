@@ -44,12 +44,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 	nodeFilter := []ast.Node{
 		(*ast.CallExpr)(nil),
+		(*ast.ValueSpec)(nil),
 		(*ast.CompositeLit)(nil),
 		(*ast.TypeSpec)(nil),
 		(*ast.FuncDecl)(nil),
 	}
 
-	newCalls := make(map[token.Pos]types.Object)
+	zeroValues := make(map[token.Pos]types.Object)
+	nilValues := make(map[token.Pos]types.Object)
 	compositeLiterals := make(map[token.Pos]types.Object)
 	typeAliases := make(map[types.Object]types.Object)
 
@@ -78,7 +80,23 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if typeObj == nil {
 				break
 			}
-			newCalls[node.Pos()] = typeObj
+			zeroValues[node.Pos()] = typeObj
+		case *ast.ValueSpec:
+			// check it's a pointer value
+			starExpr, ok := decl.Type.(*ast.StarExpr)
+			if !ok {
+				break
+			}
+			// check it's using a named type
+			ident := typeIdent(starExpr.X)
+			if ident == nil {
+				break
+			}
+			obj := pass.TypesInfo.ObjectOf(ident)
+			if obj == nil {
+				break
+			}
+			nilValues[node.Pos()] = obj
 		case *ast.CompositeLit:
 			ident := typeIdent(decl.Type)
 			if ident == nil {
@@ -87,6 +105,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 
 			obj := pass.TypesInfo.ObjectOf(ident)
 			if obj == nil {
+				break
+			}
+			// if it's a zero value literal
+			if decl.Elts == nil {
+				zeroValues[node.Pos()] = obj
 				break
 			}
 			compositeLiterals[node.Pos()] = obj
@@ -176,11 +199,21 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		pass.ExportObjectFact(typeObj, &newFact)
 	}
 
-	for pos, obj := range newCalls {
+	for pos, obj := range nilValues {
 		if constr, ok := constructorName(pass, obj, pos); ok {
 			pass.Reportf(
 				pos,
-				"nil value of type %s may be unsafe to use, use constructor %s instead",
+				"nil value of type %s may be unsafe, use constructor %s instead",
+				obj.Type(),
+				constr,
+			)
+		}
+	}
+	for pos, obj := range zeroValues {
+		if constr, ok := constructorName(pass, obj, pos); ok {
+			pass.Reportf(
+				pos,
+				"zero value of type %s may be unsafe, use constructor %s instead",
 				obj.Type(),
 				constr,
 			)

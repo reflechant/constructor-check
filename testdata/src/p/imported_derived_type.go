@@ -5,10 +5,11 @@ import (
 )
 
 var (
-	subpT3Zero      = subp.T3{}    // want `use constructor NewT for type subp.T3 instead of a composite literal`
-	subpT3ZeroPtr   = &subp.T3{}   // want `use constructor NewT for type subp.T3 instead of a composite literal`
-	subpT3Nil       = new(subp.T3) // want `nil value of type subp.T3 may be unsafe to use, use constructor NewT instead`
-	subpT3Composite = subp.T3{     // want `use constructor NewT for type subp.T3 instead of a composite literal`
+	subpT3Nil       *subp.T3                // want `nil value of type subp.T3 may be unsafe, use constructor NewT instead`
+	subpT3Zero               = subp.T3{}    // want `zero value of type subp.T3 may be unsafe, use constructor NewT instead`
+	subpT3ZeroPtr            = &subp.T3{}   // want `zero value of type subp.T3 may be unsafe, use constructor NewT instead`
+	subpT3New                = new(subp.T3) // want `zero value of type subp.T3 may be unsafe, use constructor NewT instead`
+	subpT3Composite          = subp.T3{     // want `use constructor NewT for type subp.T3 instead of a composite literal`
 		X: 1,
 	}
 	subpT3CompositePtr = &subp.T3{ // want `use constructor NewT for type subp.T3 instead of a composite literal`

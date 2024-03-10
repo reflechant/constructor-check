@@ -3,9 +3,10 @@ package p
 type derivedT T // want derivedT:`{NewT \d* \d*}`
 
 var (
-	dZero      = derivedT{}    // want `use constructor NewT for type p.derivedT instead of a composite literal`
-	dZeroPtr   = &derivedT{}   // want `use constructor NewT for type p.derivedT instead of a composite literal`
-	dNil       = new(derivedT) // want `nil value of type p.derivedT may be unsafe to use, use constructor NewT instead`
+	dNil       *derivedT       // want `nil value of type p.derivedT may be unsafe, use constructor NewT instead`
+	dZero      = derivedT{}    // want `zero value of type p.derivedT may be unsafe, use constructor NewT instead`
+	dZeroPtr   = &derivedT{}   // want `zero value of type p.derivedT may be unsafe, use constructor NewT instead`
+	dNew       = new(derivedT) // want `zero value of type p.derivedT may be unsafe, use constructor NewT instead`
 	dComposite = derivedT{     // want `use constructor NewT for type p.derivedT instead of a composite literal`
 		x: 1,
 		s: "abc",
