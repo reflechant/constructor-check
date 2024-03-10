@@ -8,14 +8,6 @@ import (
 
 var buf = bytes.Buffer{} // standard library is excluded from analysis
 
-// NewT is a valid constructor for type T. Here we check if it's called
-// instead of constructing values of type T manually
-func NewT() *T {
-	return &T{
-		m: make(map[int]int),
-	}
-}
-
 // T is a type whose zero values are supposedly invalid
 // so a constructor NewT was created.
 type T struct { // want T:`{NewT \d* \d*}`
@@ -40,6 +32,14 @@ var (
 	tPtrColl = []*T{&T{x: 1}} // want `use constructor NewT for type p.T instead of a composite literal`
 
 )
+
+// NewT is a valid constructor for type T. Here we check if it's called
+// instead of constructing values of type T manually
+func NewT() *T {
+	return &T{
+		m: make(map[int]int),
+	}
+}
 
 type structWithTField struct {
 	i int
