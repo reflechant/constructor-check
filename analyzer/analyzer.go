@@ -43,16 +43,17 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	nodeFilter := []ast.Node{
-		(*ast.CompositeLit)(nil),
-		(*ast.FuncDecl)(nil),
 		(*ast.CallExpr)(nil),
+		(*ast.CompositeLit)(nil),
+		(*ast.TypeSpec)(nil),
+		(*ast.FuncDecl)(nil),
 	}
 
 	newCalls := make(map[token.Pos]types.Object)
 	compositeLiterals := make(map[token.Pos]types.Object)
+	typeAliases := make(map[types.Object]types.Object)
 
 	inspector.Preorder(nodeFilter, func(node ast.Node) {
-
 		switch decl := node.(type) {
 		case *ast.CallExpr:
 			// check if it's a new call
@@ -67,31 +68,46 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			if len(decl.Args) != 1 {
 				break
 			}
-			// select between native types and imported
+
 			ident := typeIdent(decl.Args[0])
 			if ident == nil {
 				break
 			}
 
-			// check the type has a constructor
 			typeObj := pass.TypesInfo.ObjectOf(ident)
 			if typeObj == nil {
 				break
 			}
 			newCalls[node.Pos()] = typeObj
 		case *ast.CompositeLit:
-			// select between native types and imported
 			ident := typeIdent(decl.Type)
 			if ident == nil {
 				break
 			}
 
-			// check the type has a constructor
 			obj := pass.TypesInfo.ObjectOf(ident)
 			if obj == nil {
 				break
 			}
 			compositeLiterals[node.Pos()] = obj
+		case *ast.TypeSpec:
+			// get base type if any
+			baseIdent := typeIdent(decl.Type)
+			if baseIdent == nil {
+				break
+			}
+			// get base type object
+			baseTypeObj := pass.TypesInfo.ObjectOf(baseIdent)
+			if baseTypeObj == nil {
+				break
+			}
+
+			// get this type's object
+			typeObj := pass.TypesInfo.ObjectOf(decl.Name)
+			if typeObj == nil {
+				break
+			}
+			typeAliases[typeObj] = baseTypeObj
 		case *ast.FuncDecl:
 			// check if it's a function not a method
 			if decl.Recv != nil {
@@ -143,6 +159,22 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			// fmt.Printf("%#v\n", node)
 		}
 	})
+
+	for typeObj, baseTypeObj := range typeAliases {
+		// check the base type has a constructor
+		existingFact := new(ConstructorFact)
+		if !pass.ImportObjectFact(baseTypeObj, existingFact) {
+			continue
+		}
+
+		// mark derived type as having constructor
+		newFact := ConstructorFact{
+			ConstructorName: existingFact.ConstructorName,
+			Pos:             existingFact.Pos,
+			End:             existingFact.End,
+		}
+		pass.ExportObjectFact(typeObj, &newFact)
+	}
 
 	for pos, obj := range newCalls {
 		if constr, ok := constructorName(pass, obj, pos); ok {
