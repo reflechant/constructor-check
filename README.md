@@ -36,7 +36,7 @@ Run `make build` or build the main.go however you see fit.
 ## Usage
 
 ### Manually
-Run `./constructor_check [-flag] [package]`. You may run the command without
+Run `constructor_check [-flag] [package]`. You may run the command without
 parameters to get help message.
 
 ### With go vet
