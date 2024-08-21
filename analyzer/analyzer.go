@@ -30,7 +30,7 @@ type ConstructorFact struct {
 func (f *ConstructorFact) AFact() {}
 
 var Analyzer = &analysis.Analyzer{
-	Name:      "constructor_check",
+	Name:      "constructorcheck",
 	Doc:       "check for types constructed manually ignoring constructor",
 	Run:       run,
 	Requires:  []*analysis.Analyzer{inspect.Analyzer},
