@@ -9,10 +9,10 @@
 package analyzer
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
-	"log"
 	"os/exec"
 	"strings"
 
@@ -37,8 +37,6 @@ var Analyzer = &analysis.Analyzer{
 	FactTypes: []analysis.Fact{(*ConstructorFact)(nil)},
 }
 
-var stdPackages = stdPackageNames()
-
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
@@ -54,6 +52,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	nilValues := make(map[token.Pos]types.Object)
 	compositeLiterals := make(map[token.Pos]types.Object)
 	typeAliases := make(map[types.Object]types.Object)
+
+	stdPackages, err := stdPackageNames()
+	if err != nil {
+		return nil, err
+	}
 
 	inspector.Preorder(nodeFilter, func(node ast.Node) {
 		switch decl := node.(type) {
@@ -179,7 +182,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			}
 			pass.ExportObjectFact(obj, &fact)
 		default:
-			// fmt.Printf("%#v\n", node)
 		}
 	})
 
@@ -259,13 +261,13 @@ func typeIdent(expr ast.Expr) *ast.Ident {
 	return nil
 }
 
-func stdPackageNames() map[string]struct{} {
+func stdPackageNames() (map[string]struct{}, error) {
 	// inspired by https://pkg.go.dev/golang.org/x/tools/go/packages#Load
 	cmd := exec.Command("go", "list", "std")
 
 	output, err := cmd.Output()
 	if err != nil {
-		log.Fatal("can't load standard library package names")
+		return nil, fmt.Errorf("can't load standard library package names: %w", err)
 	}
 	pkgs := strings.Fields(string(output))
 
@@ -273,5 +275,5 @@ func stdPackageNames() map[string]struct{} {
 	for _, pkg := range pkgs {
 		stdPkgNames[pkg] = struct{}{}
 	}
-	return stdPkgNames
+	return stdPkgNames, nil
 }
