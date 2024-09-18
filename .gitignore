@@ -30,3 +30,6 @@
 # Go workspace files
 go.work
 go.work.sum
+
+# VSCode files
+.vscode/

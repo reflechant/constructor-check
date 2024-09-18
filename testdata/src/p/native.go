@@ -2,11 +2,11 @@
 package p
 
 import (
-	"bytes"
 	"fmt"
+	"net/http"
 )
 
-var buf = bytes.Buffer{} // standard library is excluded from analysis
+var client = http.Client{} // standard library is excluded from analysis
 
 // T is a type whose zero values are supposedly invalid
 // so a constructor NewT was created.
