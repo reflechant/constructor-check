@@ -13,12 +13,12 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"os/exec"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
+	"golang.org/x/tools/go/packages"
 )
 
 type ConstructorFact struct {
@@ -53,7 +53,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	compositeLiterals := make(map[token.Pos]types.Object)
 	typeAliases := make(map[types.Object]types.Object)
 
-	stdPackages, err := stdPackageNames()
+	stdPackages, err := stdPackagePaths()
 	if err != nil {
 		return nil, err
 	}
@@ -261,19 +261,17 @@ func typeIdent(expr ast.Expr) *ast.Ident {
 	return nil
 }
 
-func stdPackageNames() (map[string]struct{}, error) {
-	// inspired by https://pkg.go.dev/golang.org/x/tools/go/packages#Load
-	cmd := exec.Command("go", "list", "std")
-
-	output, err := cmd.Output()
+// returns all std packages to ignore in analysis
+func stdPackagePaths() (map[string]struct{}, error) {
+	cfg := &packages.Config{Mode: packages.NeedName}
+	pkgs, err := packages.Load(cfg, "std")
 	if err != nil {
 		return nil, fmt.Errorf("can't load standard library package names: %w", err)
 	}
-	pkgs := strings.Fields(string(output))
 
 	stdPkgNames := make(map[string]struct{}, len(pkgs))
 	for _, pkg := range pkgs {
-		stdPkgNames[pkg] = struct{}{}
+		stdPkgNames[pkg.PkgPath] = struct{}{}
 	}
 	return stdPkgNames, nil
 }
