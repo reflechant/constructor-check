@@ -1,5 +1,6 @@
 package x
 
+// constructors: NewX
 type X struct {
 	X int
 }

@@ -1,6 +1,6 @@
 module github.com/reflechant/constructor-check
 
-go 1.22
+go 1.23
 
 require golang.org/x/tools v0.19.0
 

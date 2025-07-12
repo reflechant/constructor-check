@@ -15,7 +15,9 @@ type T2 = T
 type T3 T
 
 // T is a type whose zero values are supposedly invalid
-// so a constructor NewU was created.
+// so a constructor NewT was created.
+//
+// constructors: NewT
 type T struct {
 	X int
 	M map[int]int

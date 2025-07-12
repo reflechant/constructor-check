@@ -10,6 +10,8 @@ var client = http.Client{} // standard library is excluded from analysis
 
 // T is a type whose zero values are supposedly invalid
 // so a constructor NewT was created.
+//
+// constructors: NewT
 type T struct { // want T:`{NewT \d* \d*}`
 	x int
 	s string
@@ -86,6 +88,7 @@ func retTNilPtr() *T {
 	return t
 }
 
+// constructors: NewT2
 type T2 struct { // want T2:`{NewT2 \d* \d*}`
 	x int
 }

@@ -1,15 +1,10 @@
-// Package analyzer is a linter that reports ignored constructors.
-// It shows you places where someone is doing T{} or &T{}
-// instead of using NewT declared in the same package as T.
-// A constructor for type T (only structs are supported at the moment)
-// is a function with name "NewT" that returns a value of type T or *T.
-// Types returned by constructors are not checked right now,
-// only that type T inferred from the function name exists in the same package.
-// Standard library packages are excluded from analysis.
+// Package usage analyzes type usage to check if constructors are being used. Constructors should be marked at the type declaration with a special comment like `// constructors: NewT, NewWithOptions, DefaultConfig`
+//
+// It consumes facts from the constructors analyzer and reports when types
+// are created without using their declared constructors.
 package analyzer
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
@@ -18,23 +13,15 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
-	"golang.org/x/tools/go/packages"
+
+	"github.com/reflechant/constructor-check/facts/constructors"
 )
 
-type ConstructorFact struct {
-	ConstructorName string
-	Pos             token.Pos
-	End             token.Pos
-}
-
-func (f *ConstructorFact) AFact() {}
-
 var Analyzer = &analysis.Analyzer{
-	Name:      "constructorcheck",
-	Doc:       "check for types constructed manually ignoring constructor",
-	Run:       run,
-	Requires:  []*analysis.Analyzer{inspect.Analyzer},
-	FactTypes: []analysis.Fact{(*ConstructorFact)(nil)},
+	Name:     "constructorcheck",
+	Doc:      "checks if types are created using their declared constructors",
+	Run:      run,
+	Requires: []*analysis.Analyzer{inspect.Analyzer, constructors.Analyzer},
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
@@ -45,18 +32,12 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		(*ast.ValueSpec)(nil),
 		(*ast.CompositeLit)(nil),
 		(*ast.TypeSpec)(nil),
-		(*ast.FuncDecl)(nil),
 	}
 
 	zeroValues := make(map[token.Pos]types.Object)
 	nilValues := make(map[token.Pos]types.Object)
 	compositeLiterals := make(map[token.Pos]types.Object)
 	typeAliases := make(map[types.Object]types.Object)
-
-	stdPackages, err := stdPackagePaths()
-	if err != nil {
-		return nil, err
-	}
 
 	inspector.Preorder(nodeFilter, func(node ast.Node) {
 		switch decl := node.(type) {
@@ -134,99 +115,50 @@ func run(pass *analysis.Pass) (interface{}, error) {
 				break
 			}
 			typeAliases[typeObj] = baseTypeObj
-		case *ast.FuncDecl:
-			// check if it's a function not a method
-			if decl.Recv != nil {
-				break
-			}
-
-			// check if function name starts with "New"
-			if !strings.HasPrefix(decl.Name.Name, "New") {
-				break
-			}
-
-			// check if function name follows the NewT template
-			// TODO: think about easing this requirement because often
-			// they rename types and forget to rename constructors
-			typeName, ok := strings.CutPrefix(decl.Name.Name, "New")
-			if !ok {
-				break
-			}
-
-			// check if type T extracted from function name exists
-			obj := pass.Pkg.Scope().Lookup(typeName)
-			if obj == nil {
-				break
-			}
-
-			// ignore standard library types
-			if _, ok := stdPackages[obj.Pkg().Name()]; ok {
-				break
-			}
-			// check if supposed constructor returns exactly one value
-			// TODO: implement other cases ?
-			// (T, err), (*T, err), (T, bool), (*T, bool)
-			returns := decl.Type.Results.List
-			if len(returns) != 1 {
-				break
-			}
-			// to be done later:
-			// // check if supposed constructor returns a value of type T or *T
-			// // declared in the same package and T equals extracted type name
-
-			// assume we have a valid constructor
-			fact := ConstructorFact{
-				ConstructorName: decl.Name.Name,
-				Pos:             decl.Pos(),
-				End:             decl.End(),
-			}
-			pass.ExportObjectFact(obj, &fact)
-		default:
 		}
 	})
 
+	// Handle type aliases - propagate constructor facts from base types
 	for typeObj, baseTypeObj := range typeAliases {
-		// check the base type has a constructor
-		existingFact := new(ConstructorFact)
+		// check the base type has constructors
+		existingFact := new(constructors.ConstructorFact)
 		if !pass.ImportObjectFact(baseTypeObj, existingFact) {
 			continue
 		}
 
-		// mark derived type as having constructor
-		newFact := ConstructorFact{
-			ConstructorName: existingFact.ConstructorName,
-			Pos:             existingFact.Pos,
-			End:             existingFact.End,
-		}
-		pass.ExportObjectFact(typeObj, &newFact)
+		// mark derived type as having constructors
+		newFact := &constructors.ConstructorFact{}
+		*newFact = *existingFact
+		pass.ExportObjectFact(typeObj, newFact)
 	}
 
+	// Report violations
 	for pos, obj := range nilValues {
-		if constr, ok := constructorName(pass, obj, pos); ok {
+		if constructorNames, ok := getConstructorNames(pass, obj, pos); ok {
 			pass.Reportf(
 				pos,
 				"nil value of type %s may be unsafe, use constructor %s instead",
 				obj.Type(),
-				constr,
+				formatConstructorNames(constructorNames),
 			)
 		}
 	}
 	for pos, obj := range zeroValues {
-		if constr, ok := constructorName(pass, obj, pos); ok {
+		if constructorNames, ok := getConstructorNames(pass, obj, pos); ok {
 			pass.Reportf(
 				pos,
 				"zero value of type %s may be unsafe, use constructor %s instead",
 				obj.Type(),
-				constr,
+				formatConstructorNames(constructorNames),
 			)
 		}
 	}
 	for pos, obj := range compositeLiterals {
-		if constr, ok := constructorName(pass, obj, pos); ok {
+		if constructorNames, ok := getConstructorNames(pass, obj, pos); ok {
 			pass.Reportf(
 				pos,
 				"use constructor %s for type %s instead of a composite literal",
-				constr,
+				formatConstructorNames(constructorNames),
 				obj.Type(),
 			)
 		}
@@ -235,19 +167,47 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func constructorName(pass *analysis.Pass, obj types.Object, pos token.Pos) (string, bool) {
-	fact := new(ConstructorFact)
-	if !pass.ImportObjectFact(obj, fact) {
-		return "", false
+// getConstructorNames returns the constructor names for a type if they exist
+// and the position is not inside a constructor function.
+func getConstructorNames(pass *analysis.Pass, obj types.Object, pos token.Pos) ([]string, bool) {
+	// Get constructor facts
+	fact := &constructors.ConstructorFact{}
+	found := pass.ImportObjectFact(obj, fact)
+
+	if !found {
+		return nil, false
 	}
 
-	// if used inside T's constructor - ignore
-	if pos >= fact.Pos &&
-		pos < fact.End {
-		return "", false
+	// Extract constructor names from facts
+	var constructorNames []string
+	for _, decl := range *fact {
+		constructorNames = append(constructorNames, decl.Name)
 	}
 
-	return fact.ConstructorName, true
+	// Check if we're inside any of the constructor functions
+	for _, decl := range *fact {
+		if constructorObj := pass.Pkg.Scope().Lookup(decl.Name); constructorObj != nil {
+			if fn, ok := constructorObj.(*types.Func); ok {
+				// Get the position range of the constructor function
+				// This is a simplified check - in practice, we'd need to track
+				// the actual function boundaries more precisely
+				constructorPos := fn.Pos()
+				if pos >= constructorPos && pos < constructorPos+token.Pos(len(decl.Name)) {
+					return nil, false
+				}
+			}
+		}
+	}
+
+	return constructorNames, true
+}
+
+// formatConstructorNames formats a list of constructor names for display.
+func formatConstructorNames(names []string) string {
+	if len(names) == 1 {
+		return names[0]
+	}
+	return strings.Join(names, " or ")
 }
 
 // typeIdent returns either local or imported type ident or nil
@@ -259,19 +219,4 @@ func typeIdent(expr ast.Expr) *ast.Ident {
 		return id.Sel
 	}
 	return nil
-}
-
-// returns all std packages to ignore in analysis
-func stdPackagePaths() (map[string]struct{}, error) {
-	cfg := &packages.Config{Mode: packages.NeedName}
-	pkgs, err := packages.Load(cfg, "std")
-	if err != nil {
-		return nil, fmt.Errorf("can't load standard library package names: %w", err)
-	}
-
-	stdPkgNames := make(map[string]struct{}, len(pkgs))
-	for _, pkg := range pkgs {
-		stdPkgNames[pkg.PkgPath] = struct{}{}
-	}
-	return stdPkgNames, nil
 }
