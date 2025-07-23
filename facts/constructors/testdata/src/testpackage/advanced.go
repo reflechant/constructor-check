@@ -1,5 +1,8 @@
 package testpackage
 
+// multiple constructor declarations are supported
+// we don't prevent from declaring deprecated functions as constructors
+//
 // constructors: NewT2, EmptyT2,OldConstructor
 type T2 struct { // want T2:`&\[{NewT2 \d+} {EmptyT2 \d+} {OldConstructor \d+}\]`
 	x int

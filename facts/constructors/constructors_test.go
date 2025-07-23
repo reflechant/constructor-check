@@ -7,5 +7,5 @@ import (
 )
 
 func TestConstructors(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), Analyzer, "test_package")
+	analysistest.Run(t, analysistest.TestData(), Analyzer, "testpackage")
 }
